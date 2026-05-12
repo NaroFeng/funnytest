@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#f0f4f8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>清新貪吃蛇</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="manifest" href="manifest.json">
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Quicksand', sans-serif;
+      background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+    #root {
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  </script>
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+
+    const GRID_SIZE = 15;
+    const CELL_SIZE = Math.min(window.innerWidth - 40, 400) / GRID_SIZE;
+    const INITIAL_SPEED = 150;
+
+    const App = () => {
+      const [snake, setSnake] = useState([{ x: 7, y: 7 }]);
+      const [direction, setDirection] = useState({ x: 1, y: 0 });
+      const [food, setFood] = useState({ x: 3, y: 3 });
+      const [score, setScore] = useState(0);
+      const [gameOver, setGameOver] = useState(false);
+      const [gameStarted, setGameStarted] = useState(false);
+      const [highScore, setHighScore] = useState(() => {
+        return parseInt(localStorage.getItem('snakeHighScore') || '0');
+      });
+
+      const generateFood = useCallback(() => {
+        let newFood;
+        do {
+          newFood = {
+            x: Math.floor(Math.random() * GRID_SIZE),
+            y: Math.floor(Math.random() * GRID_SIZE)
+          };
+        } while (snake.some(s => s.x === newFood.x && s.y === newFood.y));
+        return newFood;
+      }, [snake]);
+
+      useEffect(() => {
+        if (!gameStarted || gameOver) return;
+        const timer = setInterval(() => {
+          setSnake(prev => {
+            const head = prev[0];
+            const newHead = {
+              x: (head.x + direction.x + GRID_SIZE) % GRID_SIZE,
+              y: (head.y + direction.y + GRID_SIZE) % GRID_SIZE
+            };
+            if (prev.some(s => s.x === newHead.x && s.y === newHead.y)) {
+              setGameOver(true);
+              return prev;
+            }
+            const newSnake = [newHead, ...prev];
+            if (newHead.x === food.x && newHead.y === food.y) {
+              setScore(s => {
+                const newScore = s + 1;
+                if (newScore > highScore) {
+                  setHighScore(newScore);
+                  localStorage.setItem('snakeHighScore', newScore.toString());
+                }
+                return newScore;
+              });
+              setFood(generateFood());
+            } else {
+              newSnake.pop();
+            }
+            return newSnake;
+          });
+        }, INITIAL_SPEED);
+        return () => clearInterval(timer);
+      }, [direction, food, gameStarted, gameOver, generateFood, highScore]);
+
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          if (!gameStarted || gameOver) return;
+          const keyMap = {
+            ArrowUp: { x: 0, y: -1 },
+            ArrowDown: { x: 0, y: 1 },
+            ArrowLeft: { x: -1, y: 0 },
+            ArrowRight: { x: 1, y: 0 },
+            w: { x: 0, y: -1 },
+            s: { x: 0, y: 1 },
+            a: { x: -1, y: 0 },
+            d: { x: 1, y: 0 }
+          };
+          const newDir = keyMap[e.key];
+          if (newDir && !(newDir.x === -direction.x && newDir.y === -direction.y)) {
+            setDirection(newDir);
+          }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+      }, [direction, gameStarted, gameOver]);
+
+      const startGame = () => {
+        setSnake([{ x: 7, y: 7 }]);
+        setDirection({ x: 1, y: 0 });
+        setFood({ x: 3, y: 3 });
+        setScore(0);
+        setGameOver(false);
+        setGameStarted(true);
+      };
+
+      const colors = {
+        bg: '#f0f4f8',
+        grid: '#e2e8f0',
+        snake: '#10b981',
+        snakeHead: '#059669',
+        food: '#f472b6',
+        text: '#334155',
+        accent: '#06b6d4'
+      };
+
+      return (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '20px'
+        }}>
+          <h1 style={{
+            color: colors.text,
+            fontSize: '28px',
+            fontWeight: 600,
+            letterSpacing: '2px'
+          }}>
+            貪吃蛇
+          </h1>
+          
+          <div style={{
+            display: 'flex',
+            gap: '30px',
+            fontSize: '16px',
+            color: colors.text
+          }}>
+            <div>分數: <strong style={{ color: colors.accent }}>{score}</strong></div>
+            <div>最高: <strong style={{ color: colors.food }}>{highScore}</strong></div>
+          </div>
+
+          <div style={{
+            position: 'relative',
+            background: colors.bg,
+            borderRadius: '16px',
+            padding: '10px',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.1)'
+          }}>
+            <svg width={GRID_SIZE * CELL_SIZE} height={GRID_SIZE * CELL_SIZE}>
+              {Array.from({ length: GRID_SIZE }).map((_, i) => (
+                <g key={`row-${i}`}>
+                  {Array.from({ length: GRID_SIZE }).map((_, j) => (
+                    <rect
+                      key={`cell-${i}-${j}`}
+                      x={j * CELL_SIZE}
+                      y={i * CELL_SIZE}
+                      width={CELL_SIZE - 2}
+                      height={CELL_SIZE - 2}
+                      fill={colors.grid}
+                      rx="4"
+                    />
+                  ))}
+                </g>
+              ))}
+              
+              {food && (
+                <circle
+                  cx={food.x * CELL_SIZE + CELL_SIZE / 2}
+                  cy={food.y * CELL_SIZE + CELL_SIZE / 2}
+                  r={CELL_SIZE / 2 - 4}
+                  fill={colors.food}
+                >
+                  <animate
+                    attributeName="r"
+                    values={`${CELL_SIZE / 2 - 4};${CELL_SIZE / 2 - 2};${CELL_SIZE / 2 - 4}`}
+                    dur="1s"
+                    repeatCount="indefinite"
+                  />
+                </circle>
+              )}
+              
+              {snake.map((cell, i) => (
+                <rect
+                  key={`snake-${i}`}
+                  x={cell.x * CELL_SIZE + 2}
+                  y={cell.y * CELL_SIZE + 2}
+                  width={CELL_SIZE - 4}
+                  height={CELL_SIZE - 4}
+                  fill={i === 0 ? colors.snakeHead : colors.snake}
+                  rx="6"
+                />
+              ))}
+            </svg>
+
+            {(!gameStarted || gameOver) && (
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(240, 244, 248, 0.9)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '16px',
+                gap: '20px'
+              }}>
+                {gameOver && (
+                  <div style={{
+                    fontSize: '24px',
+                    fontWeight: 600,
+                    color: colors.text
+                  }}>
+                    遊戲結束!
+                  </div>
+                )}
+                <button
+                  onClick={startGame}
+                  style={{
+                    padding: '14px 40px',
+                    fontSize: '18px',
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 600,
+                    background: colors.accent,
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '30px',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 15px rgba(6, 182, 212, 0.4)',
+                    transition: 'transform 0.2s, box-shadow 0.2s'
+                  }}
+                  onMouseOver={e => {
+                    e.target.style.transform = 'scale(1.05)';
+                    e.target.style.boxShadow = '0 6px 20px rgba(6, 182, 212, 0.5)';
+                  }}
+                  onMouseOut={e => {
+                    e.target.style.transform = 'scale(1)';
+                    e.target.style.boxShadow = '0 4px 15px rgba(6, 182, 212, 0.4)';
+                  }}
+                >
+                  {gameStarted ? '再來一次' : '開始遊戲'}
+                </button>
+                <div style={{
+                  fontSize: '14px',
+                  color: '#94a3b8',
+                  textAlign: 'center'
+                }}>
+                  使用方向鍵 或 WASD 控制
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{
+            display: 'flex',
+            gap: '15px',
+            marginTop: '10px'
+          }}>
+            {['↑', '←', '↓', '→'].map((arrow, i) => (
+              <button
+                key={arrow}
+                onTouchStart={() => {
+                  if (!gameStarted || gameOver) return;
+                  const dirs = [
+                    { x: 0, y: -1 },
+                    { x: -1, y: 0 },
+                    { x: 0, y: 1 },
+                    { x: 1, y: 0 }
+                  ];
+                  const newDir = dirs[i];
+                  if (!(newDir.x === -direction.x && newDir.y === -direction.y)) {
+                    setDirection(newDir);
+                  }
+                }}
+                style={{
+                  width: '50px',
+                  height: '50px',
+                  fontSize: '24px',
+                  background: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+                  color: colors.text
+                }}
+              >
+                {arrow}
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
