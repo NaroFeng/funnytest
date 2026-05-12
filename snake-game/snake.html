@@ -3,12 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#f0f4f8">
+  <meta name="theme-color" content="#0f172a">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>清新貪吃蛇</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600&display=swap" rel="stylesheet">
+  <title>貪吃蛇</title>
   <link rel="manifest" href="manifest.json">
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
@@ -20,8 +17,8 @@
       box-sizing: border-box;
     }
     body {
-      font-family: 'Quicksand', sans-serif;
-      background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%);
+      font-family: 'Noto Sans TC', system-ui, sans-serif;
+      background: #0f172a;
       min-height: 100vh;
       display: flex;
       justify-content: center;
@@ -47,47 +44,85 @@
     }
   </script>
   <script type="text/babel">
-    const { useState, useEffect, useCallback } = React;
+    const { useState, useEffect, useRef, useCallback } = React;
 
-    const GRID_SIZE = 15;
-    const CELL_SIZE = Math.min(window.innerWidth - 40, 400) / GRID_SIZE;
-    const INITIAL_SPEED = 150;
+    const GRID_SIZE = 17;
+    const INITIAL_SPEED = 120;
 
     const App = () => {
-      const [snake, setSnake] = useState([{ x: 7, y: 7 }]);
-      const [direction, setDirection] = useState({ x: 1, y: 0 });
-      const [food, setFood] = useState({ x: 3, y: 3 });
+      const [snake, setSnake] = useState([{ x: 8, y: 8 }]);
+      const [food, setFood] = useState({ x: 4, y: 4 });
       const [score, setScore] = useState(0);
       const [gameOver, setGameOver] = useState(false);
       const [gameStarted, setGameStarted] = useState(false);
-      const [highScore, setHighScore] = useState(() => {
-        return parseInt(localStorage.getItem('snakeHighScore') || '0');
-      });
+      const [highScore, setHighScore] = useState(() => parseInt(localStorage.getItem('snakeHighScore') || '0'));
+      const [particles, setParticles] = useState([]);
+      const [flash, setFlash] = useState(false);
+      
+      const directionRef = useRef({ x: 1, y: 0 });
+      const lastProcessedRef = useRef({ x: 1, y: 0 });
+      const inputQueueRef = useRef([]);
+      const speedRef = useRef(INITIAL_SPEED);
 
       const generateFood = useCallback(() => {
         let newFood;
+        let attempts = 0;
         do {
           newFood = {
             x: Math.floor(Math.random() * GRID_SIZE),
             y: Math.floor(Math.random() * GRID_SIZE)
           };
-        } while (snake.some(s => s.x === newFood.x && s.y === newFood.y));
+          attempts++;
+        } while (attempts < 100 && snake.some(s => s.x === newFood.x && s.y === newFood.y));
         return newFood;
       }, [snake]);
 
+      const addParticles = (x, y) => {
+        const newParticles = [];
+        for (let i = 0; i < 8; i++) {
+          newParticles.push({
+            id: Date.now() + i,
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * 2,
+            vy: (Math.random() - 0.5) * 2,
+            life: 1
+          });
+        }
+        setParticles(prev => [...prev, ...newParticles]);
+      };
+
       useEffect(() => {
         if (!gameStarted || gameOver) return;
+        
         const timer = setInterval(() => {
           setSnake(prev => {
+            const currentDir = directionRef.current;
+            const lastDir = lastProcessedRef.current;
+            
+            if (inputQueueRef.current.length > 0) {
+              const nextDir = inputQueueRef.current.shift();
+              if (nextDir.x !== -lastDir.x || nextDir.y !== -lastDir.y) {
+                directionRef.current = nextDir;
+                currentDir.x = nextDir.x;
+                currentDir.y = nextDir.y;
+              }
+            }
+            
+            lastProcessedRef.current = { ...currentDir };
+            
             const head = prev[0];
             const newHead = {
-              x: (head.x + direction.x + GRID_SIZE) % GRID_SIZE,
-              y: (head.y + direction.y + GRID_SIZE) % GRID_SIZE
+              x: (head.x + currentDir.x + GRID_SIZE) % GRID_SIZE,
+              y: (head.y + currentDir.y + GRID_SIZE) % GRID_SIZE
             };
-            if (prev.some(s => s.x === newHead.x && s.y === newHead.y)) {
+            
+            const collision = prev.slice(0, -1).some(s => s.x === newHead.x && s.y === newHead.y);
+            if (collision) {
               setGameOver(true);
               return prev;
             }
+            
             const newSnake = [newHead, ...prev];
             if (newHead.x === food.x && newHead.y === food.y) {
               setScore(s => {
@@ -98,15 +133,19 @@
                 }
                 return newScore;
               });
+              addParticles(newHead.x, newHead.y);
+              setFlash(true);
+              setTimeout(() => setFlash(false), 100);
               setFood(generateFood());
+              if (speedRef.current > 60) speedRef.current -= 2;
             } else {
               newSnake.pop();
             }
             return newSnake;
           });
-        }, INITIAL_SPEED);
+        }, speedRef.current);
         return () => clearInterval(timer);
-      }, [direction, food, gameStarted, gameOver, generateFood, highScore]);
+      }, [gameStarted, gameOver, food, generateFood, highScore]);
 
       useEffect(() => {
         const handleKeyDown = (e) => {
@@ -122,31 +161,56 @@
             d: { x: 1, y: 0 }
           };
           const newDir = keyMap[e.key];
-          if (newDir && !(newDir.x === -direction.x && newDir.y === -direction.y)) {
-            setDirection(newDir);
+          if (newDir) {
+            const lastDir = lastProcessedRef.current;
+            if (newDir.x !== -lastDir.x || newDir.y !== -lastDir.y) {
+              if (inputQueueRef.current.length < 2) {
+                inputQueueRef.current.push(newDir);
+              }
+            }
+            e.preventDefault();
           }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-      }, [direction, gameStarted, gameOver]);
+      }, [gameStarted, gameOver]);
+
+      useEffect(() => {
+        const interval = setInterval(() => {
+          setParticles(prev => prev.filter(p => {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= 0.05;
+            return p.life > 0;
+          }));
+        }, 16);
+        return () => clearInterval(interval);
+      }, []);
 
       const startGame = () => {
-        setSnake([{ x: 7, y: 7 }]);
-        setDirection({ x: 1, y: 0 });
-        setFood({ x: 3, y: 3 });
+        setSnake([{ x: 8, y: 8 }]);
+        directionRef.current = { x: 1, y: 0 };
+        lastProcessedRef.current = { x: 1, y: 0 };
+        inputQueueRef.current = [];
+        speedRef.current = INITIAL_SPEED;
+        setFood({ x: 4, y: 4 });
         setScore(0);
         setGameOver(false);
         setGameStarted(true);
+        setParticles([]);
       };
 
+      const CELL_SIZE = Math.min(window.innerWidth - 40, 380) / GRID_SIZE;
+
       const colors = {
-        bg: '#f0f4f8',
-        grid: '#e2e8f0',
-        snake: '#10b981',
-        snakeHead: '#059669',
+        bg: '#1e293b',
+        grid: '#334155',
+        snake: '#22c55e',
+        snakeHead: '#4ade80',
         food: '#f472b6',
-        text: '#334155',
-        accent: '#06b6d4'
+        foodGlow: '#f9a8d4',
+        text: '#f1f5f9',
+        accent: '#38bdf8'
       };
 
       return (
@@ -156,33 +220,70 @@
           alignItems: 'center',
           gap: '20px'
         }}>
-          <h1 style={{
-            color: colors.text,
-            fontSize: '28px',
-            fontWeight: 600,
-            letterSpacing: '2px'
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
           }}>
-            貪吃蛇
-          </h1>
+            <span style={{ fontSize: '32px' }}>🐍</span>
+            <h1 style={{
+              color: colors.text,
+              fontSize: '28px',
+              fontWeight: 700
+            }}>
+              貪吃蛇
+            </h1>
+          </div>
           
           <div style={{
             display: 'flex',
-            gap: '30px',
-            fontSize: '16px',
+            gap: '40px',
+            fontSize: '18px',
             color: colors.text
           }}>
-            <div>分數: <strong style={{ color: colors.accent }}>{score}</strong></div>
-            <div>最高: <strong style={{ color: colors.food }}>{highScore}</strong></div>
+            <div style={{
+              background: 'rgba(56, 189, 248, 0.2)',
+              padding: '8px 20px',
+              borderRadius: '20px'
+            }}>
+              分數: <strong style={{ color: colors.accent, fontSize: '22px' }}>{score}</strong>
+            </div>
+            <div style={{
+              background: 'rgba(244, 114, 182, 0.2)',
+              padding: '8px 20px',
+              borderRadius: '20px'
+            }}>
+              最高: <strong style={{ color: colors.food, fontSize: '22px' }}>{highScore}</strong>
+            </div>
           </div>
 
           <div style={{
             position: 'relative',
             background: colors.bg,
-            borderRadius: '16px',
-            padding: '10px',
-            boxShadow: '0 10px 40px rgba(0,0,0,0.1)'
+            borderRadius: '20px',
+            padding: '8px',
+            boxShadow: flash ? `0 0 40px ${colors.food}` : '0 20px 60px rgba(0,0,0,0.5)',
+            transition: 'box-shadow 0.1s'
           }}>
             <svg width={GRID_SIZE * CELL_SIZE} height={GRID_SIZE * CELL_SIZE}>
+              <defs>
+                <linearGradient id="snakeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor={colors.snakeHead} />
+                  <stop offset="100%" stopColor={colors.snake} />
+                </linearGradient>
+                <radialGradient id="foodGrad" cx="30%" cy="30%">
+                  <stop offset="0%" stopColor={colors.foodGlow} />
+                  <stop offset="100%" stopColor={colors.food} />
+                </radialGradient>
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+              
               {Array.from({ length: GRID_SIZE }).map((_, i) => (
                 <g key={`row-${i}`}>
                   {Array.from({ length: GRID_SIZE }).map((_, j) => (
@@ -194,22 +295,35 @@
                       height={CELL_SIZE - 2}
                       fill={colors.grid}
                       rx="4"
+                      opacity="0.3"
                     />
                   ))}
                 </g>
+              ))}
+              
+              {particles.map(p => (
+                <circle
+                  key={p.id}
+                  cx={p.x * CELL_SIZE + CELL_SIZE/2}
+                  cy={p.y * CELL_SIZE + CELL_SIZE/2}
+                  r={CELL_SIZE * p.life * 0.3}
+                  fill={colors.food}
+                  opacity={p.life}
+                />
               ))}
               
               {food && (
                 <circle
                   cx={food.x * CELL_SIZE + CELL_SIZE / 2}
                   cy={food.y * CELL_SIZE + CELL_SIZE / 2}
-                  r={CELL_SIZE / 2 - 4}
-                  fill={colors.food}
+                  r={CELL_SIZE / 2 - 3}
+                  fill="url(#foodGrad)"
+                  filter="url(#glow)"
                 >
                   <animate
                     attributeName="r"
-                    values={`${CELL_SIZE / 2 - 4};${CELL_SIZE / 2 - 2};${CELL_SIZE / 2 - 4}`}
-                    dur="1s"
+                    values={`${CELL_SIZE / 2 - 3};${CELL_SIZE / 2 - 1};${CELL_SIZE / 2 - 3}`}
+                    dur="0.8s"
                     repeatCount="indefinite"
                   />
                 </circle>
@@ -222,8 +336,9 @@
                   y={cell.y * CELL_SIZE + 2}
                   width={CELL_SIZE - 4}
                   height={CELL_SIZE - 4}
-                  fill={i === 0 ? colors.snakeHead : colors.snake}
-                  rx="6"
+                  fill={i === 0 ? 'url(#snakeGrad)' : colors.snake}
+                  rx="8"
+                  filter={i === 0 ? 'url(#glow)' : undefined}
                 />
               ))}
             </svg>
@@ -235,91 +350,104 @@
                 left: 0,
                 right: 0,
                 bottom: 0,
-                background: 'rgba(240, 244, 248, 0.9)',
+                background: 'rgba(15, 23, 42, 0.95)',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: '16px',
+                borderRadius: '20px',
                 gap: '20px'
               }}>
                 {gameOver && (
                   <div style={{
-                    fontSize: '24px',
-                    fontWeight: 600,
-                    color: colors.text
+                    textAlign: 'center'
                   }}>
-                    遊戲結束!
+                    <div style={{
+                      fontSize: '32px',
+                      fontWeight: 700,
+                      color: '#ef4444',
+                      marginBottom: '10px'
+                    }}>
+                      💀 遊戲結束
+                    </div>
+                    <div style={{
+                      fontSize: '18px',
+                      color: colors.text
+                    }}>
+                      最終得分: <strong style={{ color: colors.accent }}>{score}</strong>
+                    </div>
                   </div>
                 )}
                 <button
                   onClick={startGame}
                   style={{
-                    padding: '14px 40px',
-                    fontSize: '18px',
-                    fontFamily: 'Quicksand, sans-serif',
+                    padding: '16px 48px',
+                    fontSize: '20px',
                     fontWeight: 600,
-                    background: colors.accent,
+                    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
                     color: 'white',
                     border: 'none',
                     borderRadius: '30px',
                     cursor: 'pointer',
-                    boxShadow: '0 4px 15px rgba(6, 182, 212, 0.4)',
-                    transition: 'transform 0.2s, box-shadow 0.2s'
+                    boxShadow: '0 8px 25px rgba(34, 197, 94, 0.4)',
+                    transition: 'all 0.2s'
                   }}
                   onMouseOver={e => {
                     e.target.style.transform = 'scale(1.05)';
-                    e.target.style.boxShadow = '0 6px 20px rgba(6, 182, 212, 0.5)';
+                    e.target.style.boxShadow = '0 12px 35px rgba(34, 197, 94, 0.5)';
                   }}
                   onMouseOut={e => {
                     e.target.style.transform = 'scale(1)';
-                    e.target.style.boxShadow = '0 4px 15px rgba(6, 182, 212, 0.4)';
+                    e.target.style.boxShadow = '0 8px 25px rgba(34, 197, 94, 0.4)';
                   }}
                 >
-                  {gameStarted ? '再來一次' : '開始遊戲'}
+                  {gameStarted ? '🔄 再來一次' : '▶️ 開始遊戲'}
                 </button>
                 <div style={{
                   fontSize: '14px',
-                  color: '#94a3b8',
-                  textAlign: 'center'
+                  color: '#64748b'
                 }}>
-                  使用方向鍵 或 WASD 控制
+                  鍵盤 / WASD / 螢幕按鈕
                 </div>
               </div>
             )}
           </div>
 
           <div style={{
-            display: 'flex',
-            gap: '15px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '8px',
             marginTop: '10px'
           }}>
-            {['↑', '←', '↓', '→'].map((arrow, i) => (
+            {[
+              [{ x: 0, y: -1 }, '↑'],
+              [{ x: -1, y: 0 }, '←'],
+              [{ x: 0, y: 1 }, '↓'],
+              [{ x: 1, y: 0 }, '→']
+            ].map(([dir, arrow], i) => (
               <button
-                key={arrow}
-                onTouchStart={() => {
+                key={i}
+                onTouchStart={(e) => {
+                  e.preventDefault();
                   if (!gameStarted || gameOver) return;
-                  const dirs = [
-                    { x: 0, y: -1 },
-                    { x: -1, y: 0 },
-                    { x: 0, y: 1 },
-                    { x: 1, y: 0 }
-                  ];
-                  const newDir = dirs[i];
-                  if (!(newDir.x === -direction.x && newDir.y === -direction.y)) {
-                    setDirection(newDir);
+                  const newDir = dir;
+                  const lastDir = lastProcessedRef.current;
+                  if (newDir.x !== -lastDir.x || newDir.y !== -lastDir.y) {
+                    if (inputQueueRef.current.length < 2) {
+                      inputQueueRef.current.push(newDir);
+                    }
                   }
                 }}
                 style={{
-                  width: '50px',
+                  width: i === 0 || i === 3 ? 70 : 50,
                   height: '50px',
                   fontSize: '24px',
-                  background: 'white',
-                  border: 'none',
+                  background: 'linear-gradient(145deg, #1e293b, #0f172a)',
+                  border: '1px solid #334155',
                   borderRadius: '12px',
                   cursor: 'pointer',
-                  boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-                  color: colors.text
+                  color: colors.text,
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.3)'
                 }}
               >
                 {arrow}
