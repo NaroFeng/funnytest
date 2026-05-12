@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Funny Projects</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      min-height: 100vh;
+      color: #eee;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 {
+      text-align: center;
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      background: linear-gradient(90deg, #e94560, #f5af19);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle {
+      text-align: center;
+      color: #888;
+      margin-bottom: 50px;
+    }
+    .projects {
+      display: grid;
+      gap: 20px;
+    }
+    .project-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 24px;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+    .project-card:hover {
+      background: rgba(255,255,255,0.1);
+      transform: translateY(-4px);
+      border-color: #e94560;
+    }
+    .project-card h2 {
+      color: #e94560;
+      margin-bottom: 8px;
+      font-size: 1.4rem;
+    }
+    .project-card p {
+      color: #aaa;
+      line-height: 1.6;
+    }
+    .project-card .tag {
+      display: inline-block;
+      background: rgba(233, 69, 96, 0.2);
+      color: #e94560;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Funny Projects</h1>
+    <p class="subtitle">收集各種有趣的小專案</p>
+    
+    <div class="projects">
+      <a href="snake-game/snake.html" class="project-card">
+        <h2>🐍 清新貪吃蛇</h2>
+        <p>一款清新簡約風格的貪吃蛇遊戲，支援鍵盤和觸控操作，可離線執行並儲存最高分數。</p>
+        <span class="tag">PWA • 遊戲</span>
+      </a>
+      
+      <a href="bubble_sort/README.md" class="project-card">
+        <h2>🔢 氣泡排序</h2>
+        <p>Python 实现的氣泡排序演算法，包含完整註解與說明。</p>
+        <span class="tag">Python • 演算法</span>
+      </a>
+    </div>
+  </div>
+</body>
+</html>
